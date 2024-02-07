@@ -24,13 +24,51 @@ const { initializeApp } = require("firebase-admin/app");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { getStorage } = require("firebase-admin/storage");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 const {
   onDocumentUpdated,
+  onDocumentCreated,
   Change,
   FirestoreEvent,
 } = require("firebase-functions/v2/firestore");
 
 initializeApp();
+//const db = admin.firestore();
+
+exports.test1 = onDocumentCreated(
+  {
+    //  region: "us-east4",
+    document: "test&/{testDocID}",
+  },
+  async (event) => {
+    const l = await getAuth().listUsers(1000);
+    console.log(JSON.stringify(l));
+    return null;
+  }
+);
+
+exports.test = onDocumentUpdated(
+  {
+    //  region: "us-east4",
+    document: "test/{testDocID}",
+  },
+  (event) => {
+    return getFirestore().runTransaction(async (transaction) => {
+      const userId = "1";
+      const userDocRef = getFirestore().collection("users").doc(userId);
+      const queryRef = getFirestore()
+        .collection("docs")
+        .where("userId", "==", userId);
+      const userDocsSnapshots = await transaction.get(queryRef);
+
+      transaction.delete(userDocRef);
+      userDocsSnapshots.forEach((userDocSnap) => {
+        transaction.delete(userDocSnap.ref);
+      });
+      return Promise.resolve();
+    });
+  }
+);
 
 exports.deleteUserDocs = onCall(async (request) => {
   const userId = request.data.userId;
@@ -60,6 +98,10 @@ exports.updateUserContactDetails = onDocumentUpdated(
 
     const newDocValues = event.data.after.data();
     const previousDocValues = event.data.before.data();
+
+    log(JSON.stringify(newDocValues));
+    //return true;
+    // userName and userPhoneNumber
 
     if (
       newDocValues.userName !== previousDocValues.userName ||
